@@ -6,28 +6,22 @@ using CarServiceManager.App.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<IServiceVisitRepository, ServiceVisitRepository>();
 builder.Services.AddScoped<ServiceVisitService>();
 builder.Services.AddScoped<ICarRepository, CarRepository>();
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy => 
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
 
 var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-
-//app.UseHttpsRedirection();
-
-
+app.UseCors();
 
 app.MapGet("/api/cars", async (AppDbContext dbContext) =>
 {
@@ -58,6 +52,11 @@ app.MapPost("/api/customers", async (CreateCustomerRequest req, AppDbContext dbC
         dbContext.Customers.Add(customer);
         await dbContext.SaveChangesAsync();
         return Results.Created($"/api/customers/{customer.Id}", customer);
+    }
+
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(ex.Message);
     }
     catch (ArgumentException ex)
     {
