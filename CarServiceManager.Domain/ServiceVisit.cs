@@ -8,8 +8,16 @@ public class ServiceVisit
     public string Description { get; private set; }
     public VisitStatus Status { get; private set; }
     
-    public ServiceVisit(Guid carId, DateTime visitDate, string description, decimal requestCost)
+    public decimal RequestedCost { get; private set; }
+    
+    public ServiceVisit(Guid carId, DateTime visitDate, string description, decimal requestedCost)
     {
+        
+        if (requestedCost < 0)
+        {
+            throw new ArgumentException("Koszt wizyty nie może być ujemny", nameof(requestedCost));
+        }
+        
         if (string.IsNullOrEmpty(description))
         {
             throw new ArgumentException("Opis wizyty nie może być pusty", nameof(description));
@@ -18,6 +26,7 @@ public class ServiceVisit
         VisitDate = visitDate;
         Description = description;
         Status = VisitStatus.Planned;
+        RequestedCost = requestedCost;
     }
     
     public void Start()

@@ -14,4 +14,11 @@ public class AppDbContext : DbContext
     public DbSet<Customer> Customers => Set<Customer>();
     
     public DbSet<ServiceVisit> ServiceVisits => Set<ServiceVisit>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ServiceVisit>()
+            .Property(v => v.RequestedCost)
+            .HasPrecision(18, 2);
+    }
 }

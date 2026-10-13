@@ -98,7 +98,7 @@ app.MapPost("/api/cars", async (CreateCarRequest request, AppDbContext dbContext
     }
     
 });
-app.MapPost("/api/service-Visits", async (CreateServiceVisitRequest request, AppDbContext dbContext) =>
+app.MapPost("/api/service-visits", async (CreateServiceVisitRequest request, AppDbContext dbContext) =>
 {
     try
     {
@@ -111,7 +111,8 @@ app.MapPost("/api/service-Visits", async (CreateServiceVisitRequest request, App
        var serviceVisit = new ServiceVisit(
             request.CarId,
             request.VisitDate,
-            request.Description
+            request.Description,
+            request.RequestedCost
         );
         dbContext.ServiceVisits.Add(serviceVisit);
         await dbContext.SaveChangesAsync();
@@ -124,10 +125,61 @@ app.MapPost("/api/service-Visits", async (CreateServiceVisitRequest request, App
 
 });
 
+app.MapGet("/api/service-visits", async (AppDbContext dbContext) =>
+{
+    var serviceVisits = await dbContext.ServiceVisits.ToListAsync();
+    return Results.Ok(serviceVisits);
+});
+
+app.MapGet("/api/cars/{carId:guid}/service-visits", async (Guid carId, AppDbContext dbContext) =>
+{
+    var serviceVisits = await dbContext.ServiceVisits.Where(sv => sv.CarId == carId).ToListAsync();
+    return Results.Ok(serviceVisits);
+});
+
+app.MapPost("/api/service-visits/{id:guid}/start", async (Guid id, AppDbContext dbContext) =>
+{
+    var serviceVisit = await dbContext.ServiceVisits.FindAsync(id);
+    if (serviceVisit == null)
+    {
+        return Results.NotFound();
+    }
+
+    try
+    {
+        serviceVisit.Start();
+        await dbContext.SaveChangesAsync();
+        return Results.Ok(serviceVisit);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+app.MapPost("/api/service-visits/{id:guid}/complete", async (Guid id, AppDbContext dbContext) =>
+{
+    var serviceVisit = await dbContext.ServiceVisits.FindAsync(id);
+    if (serviceVisit == null)
+    {
+        return Results.NotFound();
+    }
+
+    try
+    {
+        serviceVisit.Complete();
+        await dbContext.SaveChangesAsync();
+        return Results.Ok(serviceVisit);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
 
 app.Run();
 
 public record CreateCarRequest(Guid CustomerId, string Make, string Model, string Vin, int Mileage, string LicensePlate);
 public record CreateCustomerRequest(string FirstName, string LastName, string PhoneNumber, string Email); 
-public record CreateServiceVisitRequest(Guid CarId, DateTime VisitDate, string Description);
+public record CreateServiceVisitRequest(Guid CarId, DateTime VisitDate, string Description, decimal RequestedCost);
 
