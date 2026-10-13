@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using CarServiceManager.Domain;
-using Microsoft.EntityFrameworkCore.Design;
+
 
 namespace CarServiceManager.Infrastructure.Persistence;
 

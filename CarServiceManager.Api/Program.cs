@@ -1,6 +1,9 @@
+using CarServiceManager.App.Abstractions;
 using CarServiceManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using CarServiceManager.Domain;
+using CarServiceManager.App.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -9,6 +12,10 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<IServiceVisitRepository, ServiceVisitRepository>();
+builder.Services.AddScoped<ServiceVisitService>();
+builder.Services.AddScoped<ICarRepository, CarRepository>();
 
 var app = builder.Build();
 
@@ -98,27 +105,19 @@ app.MapPost("/api/cars", async (CreateCarRequest request, AppDbContext dbContext
     }
     
 });
-app.MapPost("/api/service-visits", async (CreateServiceVisitRequest request, AppDbContext dbContext) =>
+app.MapPost("/api/service-visits", async (CreateServiceVisitRequest request, ServiceVisitService serviceVisitService) =>
 {
     try
     {
-        var carExists = await dbContext.Cars.AnyAsync(c => c.Id == request.CarId);
-        if (!carExists)
-        {
-            return Results.BadRequest("Car not found");
-        }
-
-       var serviceVisit = new ServiceVisit(
+        var serviceVisit = await serviceVisitService.CreateAsync(
             request.CarId,
             request.VisitDate,
             request.Description,
             request.RequestedCost
         );
-        dbContext.ServiceVisits.Add(serviceVisit);
-        await dbContext.SaveChangesAsync();
         return Results.Created($"/api/service-visits/{serviceVisit.Id}", serviceVisit);
     }
-    catch (ArgumentException ex)
+    catch (InvalidOperationException ex)
     {
         return Results.BadRequest(ex.Message);
     }
@@ -137,18 +136,11 @@ app.MapGet("/api/cars/{carId:guid}/service-visits", async (Guid carId, AppDbCont
     return Results.Ok(serviceVisits);
 });
 
-app.MapPost("/api/service-visits/{id:guid}/start", async (Guid id, AppDbContext dbContext) =>
+app.MapPost("/api/service-visits/{id:guid}/start", async (Guid id, ServiceVisitService serviceVisitService) =>
 {
-    var serviceVisit = await dbContext.ServiceVisits.FindAsync(id);
-    if (serviceVisit == null)
-    {
-        return Results.NotFound();
-    }
-
     try
     {
-        serviceVisit.Start();
-        await dbContext.SaveChangesAsync();
+       var serviceVisit = await serviceVisitService.StartAsync(id);
         return Results.Ok(serviceVisit);
     }
     catch (InvalidOperationException ex)
@@ -157,18 +149,11 @@ app.MapPost("/api/service-visits/{id:guid}/start", async (Guid id, AppDbContext 
     }
 });
 
-app.MapPost("/api/service-visits/{id:guid}/complete", async (Guid id, AppDbContext dbContext) =>
+app.MapPost("/api/service-visits/{id:guid}/complete", async (Guid id, ServiceVisitService serviceVisitService) =>
 {
-    var serviceVisit = await dbContext.ServiceVisits.FindAsync(id);
-    if (serviceVisit == null)
-    {
-        return Results.NotFound();
-    }
-
     try
     {
-        serviceVisit.Complete();
-        await dbContext.SaveChangesAsync();
+        var serviceVisit = await serviceVisitService.CompleteAsync(id);
         return Results.Ok(serviceVisit);
     }
     catch (InvalidOperationException ex)
@@ -176,6 +161,21 @@ app.MapPost("/api/service-visits/{id:guid}/complete", async (Guid id, AppDbConte
         return Results.BadRequest(ex.Message);
     }
 });
+
+    app.MapPost("/api/service-visits/{id:guid}/cancel", async (Guid id, ServiceVisitService serviceVisitService) =>
+    {
+        try
+        {
+            var serviceVisit = await serviceVisitService.CancelAsync(id);
+            return Results.Ok(serviceVisit);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(ex.Message);
+        }
+    });
+
+
 
 app.Run();
 

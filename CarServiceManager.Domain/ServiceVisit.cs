@@ -46,4 +46,18 @@ public class ServiceVisit
         }
         Status = VisitStatus.Completed;
     }
+    
+    public void Cancel()
+    {
+        if (Status == VisitStatus.Cancelled)
+        {
+            throw new InvalidOperationException("Wizyta jest już anulowana");
+        }
+        if (Status == VisitStatus.Completed)
+        {
+            throw new InvalidOperationException("Nie można anulować wizyty, która została zakończona");
+        }
+        Status = VisitStatus.Cancelled;
+    }
+    
 }
