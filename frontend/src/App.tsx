@@ -1,87 +1,74 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { CustomersView } from './components/CustomersView'
+import { CarsView } from './components/CarsView'
+import { VisitsView } from './components/VisitsView'
 
-type Customer = {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  phoneNumber: string
+type Tab = 'customers' | 'cars' | 'visits'
+
+export default function App() {
+    const [activeTab, setActiveTab] = useState<Tab>('customers')
+
+    return (
+        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+            {}
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between items-center h-16">
+                        <div className="flex items-center space-x-3">
+                            <span className="text-2xl">🚗</span>
+                            <div>
+                                <h1 className="text-lg font-bold text-slate-900 leading-tight">Car Service Manager</h1>
+                                <p className="text-xs text-slate-500">System zarządzania warsztatem</p>
+                            </div>
+                        </div>
+
+                        {}
+                        <nav className="flex space-x-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            <button
+                                onClick={() => setActiveTab('customers')}
+                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                                    activeTab === 'customers'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                                }`}
+                            >
+                                👥 Klienci
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('cars')}
+                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                                    activeTab === 'cars'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                                }`}
+                            >
+                                🚗 Samochody
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('visits')}
+                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                                    activeTab === 'visits'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                                }`}
+                            >
+                                🔧 Wizyty serwisowe
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+            </header>
+
+            {}
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {activeTab === 'customers' && <CustomersView />}
+
+                {activeTab === 'cars' && <CarsView />}
+
+                {activeTab === 'visits' && <VisitsView/>}
+            </main>
+        </div>
+    )
 }
-
-function App() {
-
-    const [firstName, setFirstName] = useState('')
-    const [lastName, setLastName] = useState('')
-    const [email, setEmail] = useState('')
-    const [phoneNumber, setPhoneNumber] = useState('')
-
-
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<Error | null>(null)
-
-    const [customers, setCustomers] = useState<Customer[]>([])
-
-  useEffect(() => {
-    fetch('http://localhost:5059/api/customers')
-        .then (res => {
-            if (!res.ok) {
-                throw new Error('Nie udało się pobrać klientów')
-            }
-            return res.json()
-        })
-    .then(data => setCustomers(data))
-        .catch(err => setError(err))
-        .finally(() => setLoading(false))
-  }, []);
-    async function handleSumbit(e: React.FormEvent<HTMLFormElement>){
-        e.preventDefault()
-        try {
-            const res = await fetch('http://localhost:5059/api/customers', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ firstName, lastName, email, phoneNumber })
-            })
-            if (!res.ok) {
-                throw new Error('Nie udało się dodać klienta')
-            }
-            const newCustomer = await res.json()
-            setCustomers([...customers, newCustomer])
-            setFirstName('')
-            setLastName('')
-            setEmail('')
-            setPhoneNumber('')
-        } catch (err) {
-            setError(err instanceof  Error ? err : new Error('Nie udało się dodać klienta'))
-        }
-    }
-
-
-
-  return (
-      <main>
-        <h1>Car Service Manager</h1>
-        <p>Panel zarządzania warsztatem samochodowym</p>
-          {loading && <p>Ładowanie klientów...</p>}
-            {error && <p>Błąd: {error.message}</p>}
-          {!loading && !error && (
-              <ul>
-                  {customers.map(c => (
-                      <li key={c.id}>{c.firstName} {c.lastName}</li>
-                  ))}
-              </ul>
-          )}
-
-          <form onSubmit={handleSumbit}>
-              <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Imię" />
-              <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Nazwisko" />
-              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
-              <input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} placeholder="Numer telefonu" />
-              <button type="submit">Dodaj klienta</button>
-          </form>
-
-      </main>
-  )
-}
-export default App
