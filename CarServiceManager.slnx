@@ -3,4 +3,5 @@
   <Project Path="CarServiceManager.App/CarServiceManager.App.csproj" />
   <Project Path="CarServiceManager.Domain/CarServiceManager.Domain.csproj" />
   <Project Path="CarServiceManager.Infrastructure/CarServiceManager.Infrastructure.csproj" />
+  <Project Path="CarServiceManager.UnitTests/CarServiceManager.UnitTests.csproj" />
 </Solution>

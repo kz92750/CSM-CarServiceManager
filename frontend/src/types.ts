@@ -24,3 +24,10 @@ export type ServiceVisit = {
     status: number
     requestedCost: number
 }
+
+export type DashboardStats = {
+    totalCustomers: number
+    totalCars: number
+    activeVisits: number
+    totalRevenue: number
+}

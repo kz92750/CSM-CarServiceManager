@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { CustomersView } from './components/CustomersView'
 import { CarsView } from './components/CarsView'
 import { VisitsView } from './components/VisitsView'
+import { DashboardView } from './components/DashBoardView'
 
-type Tab = 'customers' | 'cars' | 'visits'
+type Tab = 'customers' | 'cars' | 'dashboard' | 'visits'
 
 export default function App() {
-    const [activeTab, setActiveTab] = useState<Tab>('customers')
+    const [activeTab, setActiveTab] = useState<Tab>('dashboard')
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -25,14 +26,14 @@ export default function App() {
                         {}
                         <nav className="flex space-x-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
                             <button
-                                onClick={() => setActiveTab('customers')}
+                                onClick={() => setActiveTab('dashboard')}
                                 className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-                                    activeTab === 'customers'
+                                    activeTab === 'dashboard'
                                         ? 'bg-blue-600 text-white shadow-sm'
                                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                                 }`}
                             >
-                                👥 Klienci
+                                📊 Pulpit
                             </button>
 
                             <button
@@ -63,6 +64,8 @@ export default function App() {
 
             {}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {activeTab === 'dashboard' && <DashboardView />}
+
                 {activeTab === 'customers' && <CustomersView />}
 
                 {activeTab === 'cars' && <CarsView />}

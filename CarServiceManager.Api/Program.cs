@@ -174,6 +174,27 @@ app.MapPost("/api/service-visits/{id:guid}/complete", async (Guid id, ServiceVis
         }
     });
 
+    app.MapGet("/api/dashboard/stats", async (AppDbContext dbContext) =>
+    {
+        var totalCustomers = await dbContext.Customers.CountAsync();
+        var totalCars = await dbContext.Cars.CountAsync();
+       
+        var activeVisits = await dbContext.ServiceVisits.CountAsync(v => 
+            v.Status == VisitStatus.Planned || v.Status == VisitStatus.InProgress);
+      
+        var totalRevenue = await dbContext.ServiceVisits
+            .Where(v => v.Status == VisitStatus.Completed)
+            .SumAsync(v => (decimal?)v.RequestedCost) ?? 0m;
+
+        return Results.Ok(new
+        {
+            TotalCustomers = totalCustomers,
+            TotalCars = totalCars,
+            ActiveVisits = activeVisits,
+            TotalRevenue = totalRevenue
+        });
+    });
+
 
 
 app.Run();
