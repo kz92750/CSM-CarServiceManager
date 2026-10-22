@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Car, ServiceVisit } from '../types'
-
+import { useAuth } from '../context/AuthContext'
 export function VisitsView() {
+    const { token } = useAuth()
     const [visits, setVisits] = useState<ServiceVisit[]>([])
     const [cars, setCars] = useState<Car[]>([])
     const [loading, setLoading] = useState(true)
@@ -63,7 +64,6 @@ export function VisitsView() {
             const newVisit = await res.json()
             setVisits(prev => [...prev, newVisit])
 
-            // Czyszczenie formularza
             setDescription('')
             setRequestedCost('')
             setVisitDate('')
@@ -73,10 +73,18 @@ export function VisitsView() {
     }
 
     async function handleStatusChange(visitId: string, action: 'start' | 'complete' | 'cancel') {
+        if (!token) {
+            setError('Musisz być zalogowany jako mechanik, aby zarządzać statusem zleceń!')
+            return
+        }
+
         try {
             setError(null)
             const res = await fetch(`http://localhost:5059/api/service-visits/${visitId}/${action}`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             })
 
             if (!res.ok) {
@@ -85,7 +93,6 @@ export function VisitsView() {
             }
 
             const updatedVisit = await res.json()
-
             setVisits(prev => prev.map(v => (v.id === updatedVisit.id ? updatedVisit : v)))
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Wystąpił błąd')
