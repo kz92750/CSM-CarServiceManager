@@ -1,8 +1,16 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using CarServiceManager.App.Abstractions;
 using CarServiceManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using CarServiceManager.Domain;
 using CarServiceManager.App.Services;
+using FluentValidation;
+using CarServiceManager.Api.Validators;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.Data;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,8 +28,110 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod());
 });
 
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+builder.Services.AddIdentityCore<IdentityUser>(options =>
+    {
+        options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredLength = 6;
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>();
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "CarServiceManagerSuperSecretSecretKey2026!MustBe32BytesLong";
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "CarServiceManagerApi",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "CarServiceManagerClient",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
 var app = builder.Build();
 app.UseCors();
+app.UseAuthentication(); 
+app.UseAuthorization();  
+
+//New User
+app.MapPost("/api/auth/register", async (
+    RegisterRequest request, 
+    UserManager<IdentityUser> userManager, 
+    RoleManager<IdentityRole> roleManager) =>
+{
+    if (!await roleManager.RoleExistsAsync(request.Role))
+    {
+        await roleManager.CreateAsync(new IdentityRole(request.Role));
+    }
+
+    var user = new IdentityUser { UserName = request.Email, Email = request.Email };
+    var result = await userManager.CreateAsync(user, request.Password);
+
+    if (!result.Succeeded)
+    {
+        return Results.BadRequest(result.Errors.Select(e => e.Description));
+    }
+    
+    //Role
+    await userManager.AddToRoleAsync(user, request.Role);
+
+    return Results.Ok(new { message = $"Użytkownik {request.Email} zarejestrowany z rolą {request.Role}!" });
+});
+
+// Login and generate JWT token
+app.MapPost("/api/auth/login", async (
+    LoginRequest request, 
+    UserManager<IdentityUser> userManager, 
+    IConfiguration config) =>
+{
+    var user = await userManager.FindByEmailAsync(request.Email);
+    if (user == null || !await userManager.CheckPasswordAsync(user, request.Password))
+    {
+        return Results.Unauthorized();
+    }
+
+    var roles = await userManager.GetRolesAsync(user);
+    var userRole = roles.FirstOrDefault() ?? "Customer";
+
+    // Create claims for the JWT token
+    var claims = new List<Claim>
+    {
+        new Claim(ClaimTypes.NameIdentifier, user.Id),
+        new Claim(ClaimTypes.Email, user.Email!),
+        new Claim(ClaimTypes.Role, userRole)
+    };
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+    // 7 days expiration
+    var token = new JwtSecurityToken(
+        issuer: config["Jwt:Issuer"],
+        audience: config["Jwt:Audience"],
+        claims: claims,
+        expires: DateTime.UtcNow.AddDays(7),
+        signingCredentials: creds
+    );
+
+    var jwtString = new JwtSecurityTokenHandler().WriteToken(token);
+
+    return Results.Ok(new
+    {
+        token = jwtString,
+        email = user.Email,
+        role = userRole
+    });
+});
 
 app.MapGet("/api/cars", async (AppDbContext dbContext) =>
 {
@@ -39,8 +149,17 @@ app.MapGet("/api/cars/{id:guid}", async (Guid id, AppDbContext dbContext) =>
     return Results.Ok(car);
 });
 
-app.MapPost("/api/customers", async (CreateCustomerRequest req, AppDbContext dbContext) =>
+app.MapPost("/api/customers", async (
+    CreateCustomerRequest req, 
+    IValidator<CreateCustomerRequest> validator, 
+    AppDbContext dbContext) =>
 {
+    var validationResult = await validator.ValidateAsync(req);
+    if (!validationResult.IsValid)
+    {
+        return Results.ValidationProblem(validationResult.ToDictionary());
+    }
+
     try
     {
         var customer = new Customer(
@@ -52,11 +171,6 @@ app.MapPost("/api/customers", async (CreateCustomerRequest req, AppDbContext dbC
         dbContext.Customers.Add(customer);
         await dbContext.SaveChangesAsync();
         return Results.Created($"/api/customers/{customer.Id}", customer);
-    }
-
-    catch (InvalidOperationException ex)
-    {
-        return Results.BadRequest(ex.Message);
     }
     catch (ArgumentException ex)
     {
@@ -76,8 +190,17 @@ app.MapGet("/api/customers/{customerId:guid}/cars", async (Guid customerId, AppD
     return Results.Ok(cars);
 });
 
-app.MapPost("/api/cars", async (CreateCarRequest request, AppDbContext dbContext) =>
+app.MapPost("/api/cars", async (
+    CreateCarRequest request, 
+    IValidator<CreateCarRequest> validator, 
+    AppDbContext dbContext) =>
 {
+    var validationResult = await validator.ValidateAsync(request);
+    if (!validationResult.IsValid)
+    {
+        return Results.ValidationProblem(validationResult.ToDictionary());
+    }
+
     try
     {
         var customerExists = await dbContext.Customers.AnyAsync(c => c.Id == request.CustomerId);
@@ -102,7 +225,6 @@ app.MapPost("/api/cars", async (CreateCarRequest request, AppDbContext dbContext
     {
         return Results.BadRequest(ex.Message);
     }
-    
 });
 app.MapPost("/api/service-visits", async (CreateServiceVisitRequest request, ServiceVisitService serviceVisitService) =>
 {
@@ -135,18 +257,21 @@ app.MapGet("/api/cars/{carId:guid}/service-visits", async (Guid carId, AppDbCont
     return Results.Ok(serviceVisits);
 });
 
-app.MapPost("/api/service-visits/{id:guid}/start", async (Guid id, ServiceVisitService serviceVisitService) =>
-{
-    try
+app.MapPost("/api/service-visits/{id:guid}/start", async (
+        Guid id, 
+        ServiceVisitService serviceVisitService) =>
     {
-       var serviceVisit = await serviceVisitService.StartAsync(id);
-        return Results.Ok(serviceVisit);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return Results.BadRequest(ex.Message);
-    }
-});
+        try
+        {
+            var serviceVisit = await serviceVisitService.StartAsync(id);
+            return Results.Ok(serviceVisit);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(ex.Message);
+        }
+    })
+    .RequireAuthorization();
 
 app.MapPost("/api/service-visits/{id:guid}/complete", async (Guid id, ServiceVisitService serviceVisitService) =>
 {
@@ -202,4 +327,6 @@ app.Run();
 public record CreateCarRequest(Guid CustomerId, string Make, string Model, string Vin, int Mileage, string LicensePlate);
 public record CreateCustomerRequest(string FirstName, string LastName, string PhoneNumber, string Email); 
 public record CreateServiceVisitRequest(Guid CarId, DateTime VisitDate, string Description, decimal RequestedCost);
+public record RegisterRequest(string Email, string Password, string Role);
+public record LoginRequest(string Email, string Password);
 
